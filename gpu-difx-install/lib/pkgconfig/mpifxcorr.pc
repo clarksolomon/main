@@ -1,0 +1,12 @@
+prefix=/home/solomon/workspace/difx/gpu-difx-install
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: mpifxcorr
+Description: Library of all mpifxcorr objects, useful for other programs which communicate to mpifxcorr
+Requires:
+Version: 2.9
+Libs: -L${libdir} -lmpifxcorr -L/opt/intel/oneapi/ipp/2021.10/lib/intel64 -L/opt/intel/oneapi/ipp/2021.10/ipp/lib/intel64 -L/opt/intel/oneapi/ipp/2021.10/compiler/lib/intel64 -Wl,-rpath,/opt/intel/oneapi/ipp/2021.10/lib/intel64 -Wl,-rpath,/opt/intel/oneapi/ipp/2021.10/ipp/lib/intel64 -lipps -lippvm -lippcore -lpthread  -L/home/solomon/workspace/difx/gpu-difx-install/lib -ldirlist
+Cflags: -I${includedir}/mpifxcorr -DIPP9 -I/opt/intel/oneapi/ipp/2021.10/include/ipp -I/home/solomon/workspace/difx/gpu-difx-install/include
+

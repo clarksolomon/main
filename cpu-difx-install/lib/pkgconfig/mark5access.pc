@@ -1,0 +1,12 @@
+prefix=/home/solomon/workspace/difx/cpu-difx-install
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+StaticLibs=${libdir}/libmark5access.a
+
+Name: mark5access
+Description: library to parse difx input and output files
+Requires: 
+Version: 1.7
+Libs: -L${libdir} -lmark5access  -L/home/solomon/workspace/difx/cpu-difx-install/lib -lcodifio
+Cflags: -I${includedir}

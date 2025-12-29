@@ -1,0 +1,12 @@
+prefix=/home/solomon/workspace/difx/gpu-difx-install
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+StaticLibs=${libdir}/libmark5ipc.a
+
+Name: mark5ipc
+Description: library to handle locking and shared memory access related to Mark5 units
+Requires:
+Version: 2.8.0
+Libs: -L${libdir} -lmark5ipc
+Cflags: -I${includedir}

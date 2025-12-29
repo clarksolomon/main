@@ -1,0 +1,11 @@
+prefix=/home/solomon/workspace/difx/gpu-difx-install
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+	
+Name: codifio
+Description: Library for parsing CODIF header frames
+Requires:
+Version: 0.8
+Libs: -L${libdir} -lcodifio
+Cflags: -I${includedir}

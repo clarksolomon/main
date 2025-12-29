@@ -1,0 +1,12 @@
+prefix=/home/solomon/workspace/difx/gpu-difx-install
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+StaticLibs=${libdir}/libdirlist.a
+
+Name: dirlist
+Description: library to process and manipulate VLBI media directory lists
+Version: 0.2
+Libs: -L${libdir} -ldirlist
+Cflags: -I${includedir}
+

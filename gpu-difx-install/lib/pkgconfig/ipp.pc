@@ -1,0 +1,8 @@
+base = /opt/intel/oneapi/ipp/2021.10
+
+Name: ipp
+Description: Intel Performance Primitives
+Requires:
+Version: 2021.10.1
+Libs: -Wl,-rpath,${base}/lib/intel64 -Wl,-rpath,${base}/ipp/lib/intel64 -L${base}/lib/intel64 -L${base}/ipp/lib/intel64 -L${base}/compiler/lib/intel64 -lipps -lippvm -lippcore
+Cflags: -DIPP9 -I${base}/include/ipp
