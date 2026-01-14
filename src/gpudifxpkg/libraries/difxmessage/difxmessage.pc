@@ -1,0 +1,13 @@
+prefix=/home/solomon/workspace/difx/gpu-difx-install
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+StaticLibs=${libdir}/libdifxmessage.a -lexpat
+
+Name: difxmessage
+Description: library to handle multicasts of difx information from mpifxcorr
+Requires:
+Version: 2.8.0
+Libs: -L${libdir} -ldifxmessage
+Libs.private: -lexpat
+Cflags: -I${includedir}
