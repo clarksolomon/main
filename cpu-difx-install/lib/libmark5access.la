@@ -17,7 +17,7 @@ old_library='libmark5access.a'
 inherited_linker_flags=''
 
 # Libraries that this one depends upon.
-dependency_libs=' -L/home/solomon/workspace/difx/cpu-difx-install/lib /home/solomon/workspace/difx/cpu-difx-install/lib/libcodifio.la -lm'
+dependency_libs=' -L/home/solomon/dfix/cpu-difx-install/lib /home/solomon/dfix/cpu-difx-install/lib/libcodifio.la -lm'
 
 # Names of additional weak libraries provided by this library
 weak_library_names=''
@@ -38,4 +38,4 @@ dlopen=''
 dlpreopen=''
 
 # Directory that this library needs to be installed in:
-libdir='/home/solomon/workspace/difx/cpu-difx-install/lib'
+libdir='/lib'

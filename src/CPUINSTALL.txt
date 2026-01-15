@@ -1,0 +1,140 @@
+-----------------------------------------------------------------------
+
+Script:         CPUINSTALL.md
+Author:         Solomon Clark
+Date:           13 Jan, 2026
+Description:    This file is meant to be a guide to navigate the specific pitfalls you may encounter while following the
+                install instructions from the main DiFX wiki: https://github.com/difx/difx/wiki/difx-installation
+                
+                * NOTE * 
+
+                This guide is specifically for someone desiring to do the install MANUALLY! (Using install-difx)
+
+-----------------------------------------------------------------------
+
+Change Log: 
+-----------
+
+Date            Author          Description
+----            ------          -----------
+2026-01-13      S. Clark        Writing first iteration
+
+2026-01-15      S. Clark        Edits for first commit
+
+-----------------------------------------------------------------------
+
+TO-DO
+-----
+
+1.  Look into issue with mpifxcorr compile process looking for NEWS file
+6.  Include note about gaining sudo access, and/or add instructions for if you don't have sudo access
+7.  Tell the people to keep the source code with the installation
+
+-----------------------------------------------------------------------
+
+Useful Links: 
+-------------
+
+A detailed graphic on the various packages within DiFX and their dependencies can be found at: https://github.com/difx/difx/blob/main/doc/userguide/difxdependency.pdf
+
+A detailed list of many of the software packages involved in running DiFX can be found here:  https://difx.readthedocs.io/en/stable/sources/difx_programs.html
+
+A detailed list of the various file formats included within DiFX can be found here: https://difx.readthedocs.io/en/stable/sources/difx_files.html
+
+-----------------------------------------------------------------------
+
+Assumptions : 
+
+User has already cloned and checked out the latest stable version of DiFX from Github. 
+
+-----------------------------------------------------------------------
+
+1.  INSTALLING DEPENDENCIES
+    
+    - MPI
+        1.  To install Open MPI, you can follow the link from the MPI section of the DiFX installation wiki: 
+            https://github.com/difx/difx/wiki/difx-installation. Once there, select a tarball of the latest version, copy the link address, $ cd to the directory you want to hold MPI, and $ wget <link to MPI tarball>. 
+        2.  From there, you just untar the tarball and you should have all of 
+            
+
+    - FFTW
+        1.  First, check to see if FFTW is included in your Linux distribution with $ which fftw and a few tab-completes
+        2.  If FFTW is not included in your distribution, you can download the latest distribution from fftw.org/download.html
+            as of right now, the current version is 3.3.10
+        
+    - IPP
+        1.  The process for installing IPP can be found at: 
+            https://www.intel.com/content/www/us/en/developer/tools/oneapi/ipp-download.html?operatingsystem=linux&linux-install=offline. You can choose to follow the offline/online install instructions, or you can choose to install 
+            with a package manager of choice as listed on the webpage. As I am aware, the latest version of the IPP library is 2022.2. 
+ 
+
+2. SETTING UP AND INSTALLING DIFX
+
+    - EDITING SETUP.BASH
+        1.  Start by editing the base version of setup.bash included in the Github repo checkout. 
+
+        2.  For the manual install of DiFX, we will have to custom set a number of the environment variables within our setup.bash 
+            script so that the compiler will be able to find and access various libraries: 
+
+            1.  Start by setting the DIFXROOT variable to the location of the directory in which you want DiFX to be installed. This will likely
+                be specific to your machine. From experience, linking to the install location is made much simpler if the intsall is located in the same place as the source code. 
+            2.  Set DIFX_PREFIX to $DIFXROOT if not already. 
+            3.  Set PGPLOTDIR to the directory containing the top directory of pgplot. To find where this is, you can run a
+                find on your machine and look for "pgplot*". You will want the directory that ends with pgplot# (# being the version number).
+            4.  Set the IPPROOT env variable to the location of your ipp library. By default, Intel sets the installation directory to
+                /opt/intel/oneapi. On the gpucorr machine at USNO, the IPPROOT env variable is set to /opt/intel/oneapi/ipp/2021.10
+            5.  After this, make sure the MPICXX variable matches the location of your mpi library. You can follow the default path if
+                it is already set in your file, or you can use $ find / -name "mpicxx" and make sure the path in the setup.bash file matches your result. 
+        
+        -   Once you have finished editing your setup.bash file, save and $ source ./setup.bash. From there, you will be able to check the condition of
+            of all of your environment variables by running $ echo $[env variable]
+
+    - COMPILING MPIFXCORR (ACTUAL CORRELATION SOFTWARE)
+
+        A practice I have found to be reliable is to compile mpifxcorr on its own before running the install-difx script. 
+        With this in mind, mpifxcorr relies on a slew of various programs to be compiled correctly before it can correctly compile itself. 
+        The patterns of dependency are drawn out in the dependencies graphic linked in the "Useful Links" section above. 
+        Additionally, I've found that the file /doc/userguide/difxdependency.dot used to create the graphic can be easier to look at if you find the graphic confusing/overwhelming. 
+
+        1.  Make sure you have sourced the correct bash scripts (either .bashrc, setup.bash, or both) containing the correct paths linking to the libraries previously mentioned (IPP, MPI).  Make sure to check these
+            as well as LD_LIBRARY_PATH and PKG_CONFIG_DIR with $ echo before moving on.  
+
+        2.  Regarding the issue with the compiler recognizing the location of your ipp library, there is a file in every difx repo called genipppc created by 
+            Walter Brisken at NRAO. Running this file with the flag $IPPROOT will help the compiler find your ipp library version data. 
+            In the terminal: $ python ./genipppc $IPPROOT. After running successfully, you should get a message confirming your ipp version data, and you should see a file called ipp.pc in your DiFX source directory. 
+
+        3.  In the past, I have encountered an error where following the preliminary instructions in the README for mpifxcorr will cause the compiler to look for
+            a file called NEWS. I've found that just creating a blank file with that name ahead of time will bypass this with no issues ($ touch NEWS).
+
+        4.  As per the dependencies graphic and the dependencies.dot file, mpifxcorr relies on a number of smaller libraries to be able to compile and work. Compiling each separately can often make the process smoother. 
+            As you compile the following libraries, check the /lib/pkgconfig in your install directory to make sure the <pkg>.pc files are present. This is (usually) a good sign that each package has been compiled and installed correctly. 
+            The path to this directory should be included somewhere in your $PKG_CONFIG_DIR env variable, and you can run a quick $ ll of this directory to check it. Additionally, you have the option to run $ pkg-config --cflags <program>, typing the name of the 
+            program as it appears in the /libraries directory in your source code checkout. When you use this method, you should get a response containing a path to /include within our install directory. 
+
+            1.  The main libraries that mpifxcorr relies on to compile are: codifio, difxio, vdifio, difxmessage, and mark5access. Having these libraries compiled is what gave me the easiest time in the past with compiling mpifxcorr. Many of these are also included in the install-difx
+                script, so compiling them ahead of time will make the larger install process smoother as well. 
+
+                For each one, you can go to their respective directories in /libraries within the source code. Compiling each package is as simple as running $ cat README and following the directions for installing from a fresh svn checkout. Any $ svn commands you can ignore. 
+
+                The README in each package will follow some semblance of the following instructions: 
+
+                aclocal
+                libtoolize 
+                autoconf
+                autoheader
+                automake
+
+                ./configure 
+                make 
+
+                make install
+
+                The first block of commands down to $ automake, you can copy and run at the same time. The $ ./configure, and $ make should be run individually. It is not always the case, but sudo access may be required to run $ make install depending on where you stored 
+                some of the preliminary dependencies. The README files also take note of this, but I have not generally found it an issue to run without admin access. 
+
+                This process will essentially be repeated for each of these mpifxcorr libraries. Remember to keep track of the /lib/pkgconfig directory within your install location. 
+                
+                Once you have all of these packages compiled, barring any unforseen issues, you should be able to follow the same process for your main mpifxcorr library within your source code. Just go to /mpifxcorr and $ cat README, and you will find a similar set of instructions to copy and follow.
+
+                By this point you have (hopefully) successfullly compiled mpifxcorr! The remaining step is to run /install-difx in your source repo, and barring any MORE unforseen issues, you should have a working DiFX correlator in your installation directory!
+

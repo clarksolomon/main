@@ -38,4 +38,4 @@ dlopen=''
 dlpreopen=''
 
 # Directory that this library needs to be installed in:
-libdir='/home/solomon/workspace/difx/cpu-difx-install/lib'
+libdir='/home/solomon/dfix/cpu-difx-install/lib'
