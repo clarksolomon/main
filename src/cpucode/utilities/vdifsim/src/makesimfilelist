@@ -1,0 +1,132 @@
+#!/bin/env python3
+
+from os import popen, getcwd
+from sys import argv, exit
+from os.path import isfile, isdir, expanduser
+
+# Usage
+#  makesimfilelist <prj.vex> [ <directory> ]
+
+program = 'makesimfilelist'
+version = '0.1.2'
+verdate = '20231028'
+author = 'Walter Brisken <wbrisken@nrao.edu>'
+
+vex = None
+name = None
+outPaths = None
+outPath = ''
+force = False
+
+dotFile = expanduser('~/.vdifsim')
+
+def loadDotFile():
+    try:
+        data = open(dotFile, 'r').readlines()
+        print('Found %s' % dotFile)
+        machines = []
+        outPaths = {}
+        for d in data:
+            s = d.strip().split('#')[0].split()
+            if len(s) == 1:
+                machines.append(s[0])
+            elif len(s) >= 2:
+                p = s[1]
+                if p[-1] != '/':
+                    p += '/'
+                outPaths[s[0].upper()] = p
+        return machines, outPaths
+    except IOError:
+        print('Note: %s not found' % dotFile)
+        return None, None
+
+def usage():
+    print('\n%s ver %s  %s  %s\n' % (program, version, verdate, author))
+    print('Usage: %s [options] <prj.vex> [ <directory> ]\n' % argv[0])
+    print('Options can include:')
+    print('  -f or --force  : continue even if destination files exist.\n')
+    print('  -h or --help   : print this help info.\n')
+    print('  --name=<name>  : change output file names to include <name>\n\n')
+    print('<prj.vex> is the vex file.  Start and stop times in the $SCHED')
+    print('section is used.\n')
+    print('<directory> is an optional parameter for location of the .vdif files')
+    print('to be created.  If not supplied, they will go into the current directory.\n')
+    print('If a ~/.vdifsim file exists, that will be used to specify .vdif file')
+    print('locations.  See sample.vdifsim.\n')
+
+for a in argv[1:]:
+    if a[0] == '-':
+        if a in ['-h', '--help']:
+            usage()
+            exit(0)
+        elif a in ['-f', '--force']:
+            force = True
+        elif a[0:7] == '--name=':
+            name = a[7:]
+        else:
+            print('Unknown parameter: %s\n' % a)
+            exit(0)
+    elif vex == None:
+        vex = a
+    elif outPath == '':
+        outPath = a
+        if a[-1] != '/':
+            outPath += '/'
+    else:
+        print('Unexpected command line parameter : %s\n' % a)
+        exit(0)
+
+if vex == None:
+    print('A vex file must be provided.  Run with --help for more details.')
+    exit(0)
+
+if outPath == '':
+    machines, outPaths = loadDotFile()
+    if machines == None:
+        print('Cannot open %s .  Will put files in current directory.' % dotFile)
+        outPath = getcwd() + '/'
+
+antennas = []
+project = None
+
+data = popen('vexpeek %s' % vex).readlines();
+for d in data:
+    l = d.strip()
+    if project == None:
+        project = l
+    else:
+        s = l.split()
+        antennas.append(s[0])
+
+if name == None:
+    name = project.lower()
+
+print('Project: ', project, '  Antennas: ', antennas, '  Base name: ', name)
+
+for a in antennas:
+    outFile = name + '.' + a.lower() + '.filelist'
+    if isfile(outFile) and not force:
+        print('Output file %s exists.  Will not overwrite.  Run with --force to proceed.' % outFile)
+        exit(0)
+    out = open(outFile, 'w')
+    data = popen('vexpeek --scans=%s %s' % (a, vex)).readlines()
+    for d in data:
+        s = d.strip().split()
+        if len(s) == 6:
+            scan = s[0]
+            start = s[4]
+            stop = s[5]
+            if outPaths != None:
+                try:
+                    P = outPaths[a.upper()]
+                except KeyError:
+                    try:
+                        P = outPaths['*']
+                    except KeyError:
+                        P = outPath
+            else:
+                P = outPath
+            if not isdir(P):
+                print('Warning: %s does not exist as a directory.  You might want to correct that!' % P)
+            out.write('%s%s_%s_%s.sim %s %s\n' % (P, name.upper(), a.upper(), scan, start, stop))
+    out.close()

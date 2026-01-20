@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+#===========================================================================
+# Copyright (C) 2021  Max-Planck-Institut für Radioastronomie, Bonn, Germany
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# Shell script to allow starting of heterogeneous DiFX jobs through the SLURM batch scheduler.
+# DiFX jobs will be heterogeneous when containing e.g. mark5 and/or mark5 playback units or
+# if a specific head node is required.
+#
+# Assumes compute nodes and datastream nodes are differentiated in SLURM via Feature=...,
+# example /etc/slurm/slurm.conf config:
+#   NodeName=fxmanager CPUs=16 Sockets=2 CoresPerSocket=8 ThreadsPerCore=2 Feature=difxhead State=UNKNOWN
+#   NodeName=node01,node02,node03 CPUs=40 Sockets=2 CoresPerSocket=10 ThreadsPerCore=2 Feature=compute State=UNKNOWN
+#   NodeName=io01 CPUs=48 Sockets=2 CoresPerSocket=12 ThreadsPerCore=2 Feature=storage State=UNKNOWN
+#   NodeName=mark5fx01,mark5fx02 CPUs=1 Sockets=1 CoresPerSocket=1 ThreadsPerCore=1 Feature=mark5 State=UNKNOWN
+#   NodeName=mark6-01,mark6-02 CPUs=12 Sockets=1 CoresPerSocket=6 ThreadsPerCore=2 Feature=mark6 State=UNKNOWN
+#
+# Execute with startdifx -A difxslurm ...
+#============================================================================
+
+set -m               # for backgrounding 'salloc'
+#set -o xtrace       # for tracing/debugging this bash script
+
+# make sure slurm job gets canceled on SIGINT
+trap cleanExit SIGINT
+
+function cleanExit {
+    scancel $JOB_ID
+    kill -9 $SALLOC_PID
+    echo "done"
+    exit
+}
+
+path=`dirname $1`
+job=`basename $1`
+HOSTFILE=$job.machines
+
+## Specific settings (adjust for your cluster)
+partition=correlator
+threads=19
+ratePerThread=25  # processing rate Mbyte/s per thread that the compute nodes can do
+
+## Generate .machine file (FxManager node + datastream nodes only)
+echo Generating datastream-only .machines file...
+cd $path
+genmachines --nocompute $job.input
+mv $job.machines $job.dsmachines
+
+## Convert .dsmachines into a single SLURM jobstep
+ionodelist=`cat $job.dsmachines | sort | uniq | paste -sd","`
+ionodecount=`cat $job.dsmachines | sort | uniq | wc -l`
+
+## Estimate nr of compute nodes needed
+np=`difxresource -r $ratePerThread $job.input | tail -1`
+computenodecount=$(((np+threads-1)/threads))
+echo "Estimated the num of compute nodes needed: $computenodecount nodes with $threads threads"
+
+## Request an allocation, wait till successfully received (else exit), then add compute node names to .machines
+echo "Making SLURM allocation..."
+
+rm -f /tmp/$job.stdout
+echo salloc -J $job \
+	-p correlator --nodes=$ionodecount --nodelist=$ionodelist --overcommit --oversubscribe : \
+	-p correlator --nodes=$computenodecount --constraint=compute --overcommit --cpus-per-task=$threads --ntasks-per-node=1 \> /tmp/$job.stdout \&
+salloc -J $job \
+	-p correlator --nodes=$ionodecount --nodelist=$ionodelist --overcommit --oversubscribe : \
+	-p correlator --nodes=$computenodecount --constraint=compute --overcommit --cpus-per-task=$threads --ntasks-per-node=1  &>/tmp/$job.stdout &
+SALLOC_PID=$!
+sleep 1
+
+# parse salloc output to see whether resources have been granted
+# salloc: job 10912 queued and waiting for resources
+regGrant='salloc: Granted job allocation ([0-9]+)'
+regQueue='salloc: job ([0-9]+) queued'
+regFail='salloc: error'
+START=0
+JOB_ID=""
+echo "Waiting for SLURM resource allocation..."
+while [ $START -eq 0 ]
+do
+    while read l; do
+        # allocation granted
+        if [[ $l =~ $regGrant ]]; then
+            #JOB_ID=${BASH_REMATCH[1]}
+            START=1
+            break
+        fi
+        #alocation queued
+        if [[ $l =~ $regQueue ]]; then
+            JOB_ID=${BASH_REMATCH[1]}
+            echo $JOB_ID > $job.slurmid
+        fi
+        if [[ $l =~ $regFail ]]; then
+            echo $l
+            cleanExit
+        fi
+    done < /tmp/$job.stdout
+done
+
+## Avoid "srun: error: Unable to confirm allocation for job <some nr>: Invalid job id specified":
+##       "srun: Check SLURM_JOB_ID environment variable. Expired or invalid job <some nr>"
+## by updating SLURM_JOB_ID
+export SLURM_JOB_ID=$JOB_ID
+
+## Add compute node details into HOSTFILE
+echo "Granted job allocation $JOB_ID:"
+# srun <binary on jobstep 1> : <binary on jobstep 2> : ...
+squeue -j $JOB_ID --format "%.18i %.12P %.24j %.8u %.2t %.10M %.6D %.3C %R"
+
+echo "Getting full list of hostnames..."
+cat $job.dsmachines > $HOSTFILE
+srun /usr/bin/true : /usr/bin/hostname -s | sort | uniq >> $HOSTFILE
+
+numtasks=`cat $HOSTFILE | wc -l`
+numds=`cat $job.dsmachines | wc -l`
+echo "Final machines file has $numtasks nodes total, including $numds datastreams:"
+cat $job.machines
+
+## Finally MPI exec, but hide the SLURM allocation, else mpirun will have many complaints
+echo "About to: mpirun -np $numtasks --hostfile $HOSTFILE $DIFX_MPIRUNOPTIONS /cluster/difx/runmpifxcorr.$DIFX_VERSION $job.input"
+unset SLURM_JOBID
+unset SLURM_CLUSTER_NAME
+mpirun -np $numtasks --hostfile $HOSTFILE $DIFX_MPIRUNOPTIONS /cluster/difx/runmpifxcorr.$DIFX_VERSION $job.input
+
+## Done. Hopefully.
+cleanExit
